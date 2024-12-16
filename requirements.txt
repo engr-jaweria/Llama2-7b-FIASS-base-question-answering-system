@@ -11,3 +11,4 @@ openpyxl
 requests
 numpy
 pyngrok
+python-dotenv
