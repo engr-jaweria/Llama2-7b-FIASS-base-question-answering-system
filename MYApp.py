@@ -71,7 +71,7 @@ def extract_text_from_url(url):
         st.error(f"Error fetching URL content: {e}")
         return ""
 
-def validate_total_file_size(files, max_size_mb=15):
+def validate_total_file_size(files, max_size_mb=20):
     """Validate the total size of uploaded files."""
     total_size = sum(file.size for file in files) / (1024 * 1024)  # Convert bytes to MB
     if total_size > max_size_mb:
@@ -100,8 +100,6 @@ def main():
     web_links = st.sidebar.text_area("Or provide web links (comma-separated):", "").split(',')
 
     # Allow user to limit number of uploaded files
-    num_files_limit = st.sidebar.number_input("Select number of files to upload (Max 10)", min_value=1, max_value=10, value=5)
-
     chunk_size = st.sidebar.slider("Set Chunk Size", 500, 2000, 1000)
 
     documents = []
@@ -113,7 +111,7 @@ def main():
 
         temp_dir = tempfile.TemporaryDirectory()
 
-        for uploaded_file in uploaded_files[:num_files_limit]:  # Limit the number of files uploaded
+        for uploaded_file in uploaded_files:  # Process all uploaded files
             file_path = os.path.join(temp_dir.name, uploaded_file.name)
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.read())
