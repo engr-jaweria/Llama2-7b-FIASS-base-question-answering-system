@@ -193,7 +193,10 @@ def main():
             # Save chat history
             st.session_state.chat_history.append({"question": question, "answer": answer})
 
-            st.write("Answer:", answer)
+            # Display formatted question and answer
+            st.markdown(f"## **{answer}**")  # Answer in large, bold (Heading 1)
+            st.markdown(f"### **{question}**")  # Question in large, bold (Heading 3)
+            st.write(answer)  # Full answer below the question
 
         # Display chat history
         if st.session_state.chat_history:
