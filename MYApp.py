@@ -30,6 +30,7 @@ embeddings_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
 # Utility functions
 def extract_text_from_pdf(pdf_file):
+    """Extract text from a PDF file."""
     text = ""
     with fitz.open(pdf_file) as doc:
         for page in doc:
@@ -37,10 +38,12 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def extract_text_from_docx(docx_file):
+    """Extract text from a DOCX file."""
     doc = DocxDocument(docx_file)
     return "\n".join([para.text for para in doc.paragraphs])
 
 def extract_text_from_pptx(pptx_file):
+    """Extract text from a PPTX file."""
     presentation = Presentation(pptx_file)
     text = ""
     for slide in presentation.slides:
@@ -50,10 +53,12 @@ def extract_text_from_pptx(pptx_file):
     return text
 
 def extract_text_from_xlsx(xlsx_file):
+    """Extract text from an XLSX file."""
     df = pd.read_excel(xlsx_file)
     return df.to_string()
 
 def extract_text_from_url(url):
+    """Fetch text content from a URL."""
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -63,6 +68,7 @@ def extract_text_from_url(url):
         return ""
 
 def validate_total_file_size(files, max_size_mb=20):
+    """Validate that the total size of uploaded files does not exceed a limit."""
     total_size = sum(file.size for file in files) / (1024 * 1024)  # Convert bytes to MB
     if total_size > max_size_mb:
         st.error(f"Total file size exceeds {max_size_mb} MB. Please reduce the total file size.")
@@ -70,19 +76,23 @@ def validate_total_file_size(files, max_size_mb=20):
     return True
 
 def llama2_generate_replicate(prompt, temperature=0.75, max_new_tokens=800):
-    """Generate text using Replicate."""
+    """Generate text using the Llama2 model on Replicate."""
     import replicate
     client = replicate.Client(api_token=REPLICATE_API_TOKEN)
-    output = client.run(
-        "meta/llama-2-7b:1e7d2e7d98fa5704d97ffdd41b22f7e3d374d5a380ddaad40b6e7f43b8b21380",
-        input={
-            "prompt": prompt,
-            "temperature": temperature,
-            "max_tokens": max_new_tokens,
-            "top_p": 1,
-        },
-    )
-    return output
+    try:
+        output = client.run(
+            "meta/llama-2-7b-chat",
+            input={
+                "prompt": prompt,
+                "temperature": temperature,
+                "max_tokens": max_new_tokens,
+                "top_p": 1,
+            },
+        )
+        return output
+    except Exception as e:
+        st.error(f"Error generating response: {e}")
+        return None
 
 # Main Streamlit application
 def main():
@@ -95,33 +105,35 @@ def main():
     chunk_size = st.sidebar.slider("Set Chunk Size", 500, 2000, 1000)
     documents = []
 
+    # Process uploaded files
     if uploaded_files:
         if not validate_total_file_size(uploaded_files):
             return
-        temp_dir = tempfile.TemporaryDirectory()
-        for uploaded_file in uploaded_files:
-            file_path = os.path.join(temp_dir.name, uploaded_file.name)
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.read())
-            if uploaded_file.name.endswith(".txt"):
-                with open(file_path, "r", encoding="utf-8") as f:
-                    documents.append(f.read())
-            elif uploaded_file.name.endswith(".pdf"):
-                documents.append(extract_text_from_pdf(file_path))
-            elif uploaded_file.name.endswith(".docx"):
-                documents.append(extract_text_from_docx(file_path))
-            elif uploaded_file.name.endswith(".pptx"):
-                documents.append(extract_text_from_pptx(file_path))
-            elif uploaded_file.name.endswith(".xlsx"):
-                documents.append(extract_text_from_xlsx(file_path))
-        temp_dir.cleanup()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for uploaded_file in uploaded_files:
+                file_path = os.path.join(temp_dir, uploaded_file.name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.read())
+                if uploaded_file.name.endswith(".txt"):
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        documents.append(f.read())
+                elif uploaded_file.name.endswith(".pdf"):
+                    documents.append(extract_text_from_pdf(file_path))
+                elif uploaded_file.name.endswith(".docx"):
+                    documents.append(extract_text_from_docx(file_path))
+                elif uploaded_file.name.endswith(".pptx"):
+                    documents.append(extract_text_from_pptx(file_path))
+                elif uploaded_file.name.endswith(".xlsx"):
+                    documents.append(extract_text_from_xlsx(file_path))
 
+    # Process web links
     for web_link in web_links:
         if web_link.strip():
             documents.append(extract_text_from_url(web_link.strip()))
 
+    # Process documents and generate embeddings
     if documents:
-        chunks = [doc[i:i+chunk_size] for doc in documents for i in range(0, len(doc), chunk_size)]
+        chunks = [doc[i:i + chunk_size] for doc in documents for i in range(0, len(doc), chunk_size)]
         docs = [Document(page_content=chunk, metadata={"source": "uploaded file"}) for chunk in chunks]
         embeddings = embeddings_model.embed_documents(chunks)
         embeddings_array = np.array(embeddings)
@@ -129,6 +141,7 @@ def main():
         faiss_index = faiss.IndexFlatL2(dimension)
         faiss_index.add(embeddings_array.astype(np.float32))
 
+        # Ask a question
         st.header("Ask a Question")
         question = st.text_input("Your Question:")
         format_choice = st.selectbox("Answer Format:", ["Default", "Bullet Points", "Summary", "Specific Length"])
@@ -145,7 +158,8 @@ def main():
                 prompt += f"\nLimit the answer to {word_limit} words."
 
             answer = llama2_generate_replicate(prompt)
-            st.markdown(f"### Generated Response:\n{answer}")
+            if answer:
+                st.markdown(f"### Generated Response:\n{answer}")
 
     else:
         st.write("Upload documents or provide a web link to begin.")
