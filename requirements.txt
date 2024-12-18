@@ -10,5 +10,6 @@ pandas
 openpyxl
 requests
 numpy
-pyngrok
 python-dotenv
+huggingface-hub
+replicate
