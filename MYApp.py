@@ -95,6 +95,7 @@ def llama2_generate_replicate(prompt, temperature=0.75, max_new_tokens=800):
         return None
 
 # Main Streamlit application
+# Main Streamlit application
 def main():
     st.title("Llama2-7B Q&A System")
 
@@ -149,20 +150,31 @@ def main():
 
         if st.button("Get Answer") and question:
             context = " ".join(chunks)
-            prompt = f"Answer the question based on the context: {context}\n\nQuestion: {question}"
+            prompt = f"Answer the question based on the context below:\n\n{context}\n\nQuestion: {question}"
+
+            # Add formatting to the prompt based on the user's choice
             if format_choice == "Bullet Points":
-                prompt += "\nProvide the answer as bullet points."
+                prompt += "\n\nProvide the answer as bullet points."
             elif format_choice == "Summary":
-                prompt += "\nProvide a concise summary."
+                prompt += "\n\nProvide a concise summary."
             elif format_choice == "Specific Length":
-                prompt += f"\nLimit the answer to {word_limit} words."
+                prompt += f"\n\nLimit the answer to {word_limit} words."
 
-            answer = llama2_generate_replicate(prompt)
-            if answer:
-                st.markdown(f"### Generated Response:\n{answer}")
-
+            try:
+                answer = llama2_generate_replicate(prompt)
+                if answer:
+                    st.markdown(f"### Generated Response:\n{answer}")
+                else:
+                    st.error("Failed to generate a response.")
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                st.stop()
     else:
         st.write("Upload documents or provide a web link to begin.")
+
+if __name__ == "__main__":
+    main()
+
 
 if __name__ == "__main__":
     main()
