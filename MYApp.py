@@ -200,7 +200,7 @@ def main():
             context_docs.sort(key=lambda x: x.metadata.get("relevance", 0), reverse=True)  # Sort by relevance
             context = " ".join([doc.page_content for doc in context_docs])
             prompt = f"Answer the question based on the context:\n{context}\n\nQuestion: {question}"
-
+        
             # Modify the prompt to suit different answer formats
             if format_choice == "Bullet Points":
                 prompt += "\nPlease provide the answer in bullet points."
@@ -208,7 +208,7 @@ def main():
                 prompt += "\nPlease provide a concise summary."
             elif format_choice == "Specific Length":
                 prompt += f"\nPlease limit the answer to {word_limit} words."
-
+        
             # Call the appropriate model for generation
             if model_choice == "Hugging Face":
                 answer = llama2_generate_huggingface(prompt)
@@ -216,7 +216,7 @@ def main():
                 answer = llama2_generate_replicate(prompt)
             else:
                 answer = "Please select a model."
-
+        
             # Format the answer according to the chosen style
             if format_choice == "Bullet Points":
                 answer = "\n- " + answer.replace(". ", "\n- ")
@@ -224,20 +224,22 @@ def main():
                 answer = "\nSummary: " + answer
             elif format_choice == "Specific Length":
                 answer = answer[:word_limit]
-
+        
             # Save chat history
             st.session_state.chat_history.append({"question": question, "answer": answer})
-
-            # Display formatted question and answer
-            st.markdown(f"## **{answer}**")  # Answer in large, bold (Heading 1)
-            st.markdown(f"### **{question}**")  # Question in large, bold (Heading 3)
-            st.write(answer)  # Full answer below the question
-
-        # Display chat history
+        
+            # Display question and answer
+            st.markdown("## **Generated Response:**")
+            st.markdown(f"### **{question}**")
+            st.write(answer)
+        
+        # Display chat history (Only if the user scrolls to it explicitly)
         if st.session_state.chat_history:
-            st.header("Chat History")
-            for entry in st.session_state.chat_history:
-                st.write(f"**Q:** {entry['question']}\n**A:** {entry['answer']}\n")
+            with st.expander("Chat History"):
+                st.header("Chat History")
+                for entry in st.session_state.chat_history:
+                    st.write(f"**Q:** {entry['question']}\n**A:** {entry['answer']}\n")
+
 
     else:
         st.write("Upload documents or provide a web link to begin.")
