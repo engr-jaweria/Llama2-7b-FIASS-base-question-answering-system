@@ -18,6 +18,7 @@ from langchain.schema import Document
 from langchain.docstore import InMemoryDocstore
 from langchain.vectorstores import FAISS as LangchainFAISS
 from langchain.docstore.document import Document as LangchainDocument
+import replicate
 
 # Load environment variables
 load_dotenv()
@@ -79,16 +80,41 @@ def validate_total_file_size(files, max_size_mb=20):
         return False
     return True
 
-def llama2_generate(prompt, top_p=1, temperature=0.75, max_new_tokens=800):
-    """Generate text using Llama 2 (mocked for now)."""
-    input = {
-        "top_p": top_p,
-        "prompt": prompt,
-        "temperature": temperature,
-        "max_new_tokens": max_new_tokens
+# Hugging Face Llama2 API integration
+def llama2_generate_huggingface(prompt, top_p=1, temperature=0.75, max_new_tokens=800):
+    """Generate text using Hugging Face Llama2 API."""
+    url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-hf"
+    headers = {
+        "Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"
     }
-    # Mocked response for simplicity
-    return f"Generated response based on: {prompt}"
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "top_p": top_p,
+            "temperature": temperature,
+            "max_new_tokens": max_new_tokens
+        }
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        result = response.json()
+        return result[0]['generated_text']  # The model response will be here
+    else:
+        st.error(f"Error with Hugging Face API: {response.text}")
+        return "Error generating answer."
+
+# Replicate Llama2 API integration
+def llama2_generate_replicate(prompt, top_p=1, temperature=0.75, max_new_tokens=800):
+    """Generate text using Replicate Llama2 API."""
+    model = replicate.models.get("replicate/llama2-7b")
+    output = model.predict(
+        prompt=prompt,
+        top_p=top_p,
+        temperature=temperature,
+        max_new_tokens=max_new_tokens
+    )
+    return output[0]  # Assuming the model returns a list of responses
 
 # Main Streamlit application
 def main():
@@ -167,22 +193,31 @@ def main():
         format_choice = st.selectbox("Answer Format:", ["Default", "Bullet Points", "Summary", "Specific Length"])
         word_limit = st.number_input("Word/Character Limit:", min_value=10, max_value=500, value=100) if format_choice == "Specific Length" else None
 
+        model_choice = st.selectbox("Choose model:", ["Hugging Face", "Replicate"])
+
         if st.button("Get Answer") and question:
             context_docs = retriever.get_relevant_documents(question)
             context_docs.sort(key=lambda x: x.metadata.get("relevance", 0), reverse=True)  # Sort by relevance
             context = " ".join([doc.page_content for doc in context_docs])
-            prompt = f"Answer the question based on the context: {context}\n\nQuestion: {question}"
+            prompt = f"Answer the question based on the context:\n{context}\n\nQuestion: {question}"
 
+            # Modify the prompt to suit different answer formats
             if format_choice == "Bullet Points":
-                prompt += "\nPlease provide the answer as bullet points."
+                prompt += "\nPlease provide the answer in bullet points."
             elif format_choice == "Summary":
                 prompt += "\nPlease provide a concise summary."
             elif format_choice == "Specific Length":
                 prompt += f"\nPlease limit the answer to {word_limit} words."
 
-            answer = llama2_generate(prompt)
+            # Call the appropriate model for generation
+            if model_choice == "Hugging Face":
+                answer = llama2_generate_huggingface(prompt)
+            elif model_choice == "Replicate":
+                answer = llama2_generate_replicate(prompt)
+            else:
+                answer = "Please select a model."
 
-            # Format answer if required
+            # Format the answer according to the chosen style
             if format_choice == "Bullet Points":
                 answer = "\n- " + answer.replace(". ", "\n- ")
             elif format_choice == "Summary":
